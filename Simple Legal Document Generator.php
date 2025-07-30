@@ -14,6 +14,36 @@ if (!defined('ABSPATH')) exit;
 define('LDG_PRO_PRODUCT_ID', 465);        // Replace with your Pro plan product ID
 define('LDG_ENTERPRISE_PRODUCT_ID', 571); // Replace with your Enterprise plan product ID
 
+add_filter('woocommerce_add_to_cart_validation', 'ldg_only_one_subscription_plan', 10, 3);
+function ldg_only_one_subscription_plan($passed, $product_id, $quantity) {
+    
+    // Your product IDs
+    $pro_id = 465;        // Your Pro plan product ID
+    $enterprise_id = 571; // Your Enterprise plan product ID
+    
+    // Check if adding a subscription product
+    if ($product_id == $pro_id || $product_id == $enterprise_id) {
+        
+        // Remove the other subscription from cart
+        foreach (WC()->cart->get_cart() as $cart_item_key => $cart_item) {
+            
+            // If Pro is in cart and adding Enterprise, remove Pro
+            if ($product_id == $enterprise_id && $cart_item['product_id'] == $pro_id) {
+                WC()->cart->remove_cart_item($cart_item_key);
+                wc_add_notice('Professional plan removed. Adding Enterprise plan.', 'notice');
+            }
+            
+            // If Enterprise is in cart and adding Pro, remove Enterprise
+            if ($product_id == $pro_id && $cart_item['product_id'] == $enterprise_id) {
+                WC()->cart->remove_cart_item($cart_item_key);
+                wc_add_notice('Enterprise plan removed. Adding Professional plan.', 'notice');
+            }
+        }
+    }
+    
+    return $passed;
+}
+
 // ===== ACTIVATION & DEACTIVATION HOOKS =====
 register_activation_hook(__FILE__, 'ldg_activate_plugin');
 register_deactivation_hook(__FILE__, 'ldg_deactivate_plugin');
@@ -678,6 +708,7 @@ function render_legal_documents($atts) {
                 overflow: hidden;
                 border: 1px solid rgba(19, 94, 237, 0.1);
                 position: relative;
+				height: 700px;
             }
             
             /* Grid Layout - TWO COLUMNS */
@@ -685,7 +716,8 @@ function render_legal_documents($atts) {
                 display: grid;
                 grid-template-columns: 380px 1fr;
                 gap: 0;
-                height: 660px;
+                height: 700px;
+				position: relative;
             }
             
             /* Form Section - LEFT SIDE */
@@ -693,7 +725,10 @@ function render_legal_documents($atts) {
                 background: #f8f9fa;
                 padding: 30px;
                 overflow-y: auto;
-                border-right: 1px solid #e1e8ed;
+                overflow-x: hidden;
+    border-right: 1px solid #e1e8ed;
+    height: 100%;
+    position: relative;
             }
             
             .ldg-form::-webkit-scrollbar {
@@ -787,6 +822,8 @@ function render_legal_documents($atts) {
                 display: flex;
                 flex-direction: column;
                 background: white;
+				height: 100%;
+    overflow: hidden;
             }
             
             .ldg-preview-header {
@@ -821,6 +858,8 @@ function render_legal_documents($atts) {
                 font-size: 11pt;
                 line-height: 1.5;
                 color: #000;
+				position: relative;
+    height: calc(100% - 80px);
             }
             
             /* Modern Buttons */
@@ -1027,6 +1066,45 @@ function render_legal_documents($atts) {
                     text-align: center;
                 }
             }
+			
+			/* Ensure content is visible when scrolling */
+.template-fields {
+    padding-bottom: 50px;
+}
+
+/* Better scrollbar styling */
+.ldg-form::-webkit-scrollbar,
+.ldg-preview::-webkit-scrollbar {
+    width: 8px;
+}
+
+.ldg-form::-webkit-scrollbar-track,
+.ldg-preview::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.ldg-form::-webkit-scrollbar-thumb {
+    background: #135eed;
+    border-radius: 4px;
+}
+
+.ldg-preview::-webkit-scrollbar-thumb {
+    background: #666;
+    border-radius: 4px;
+}
+
+/* Firefox scrollbar support */
+.ldg-form {
+    scrollbar-width: thin;
+    scrollbar-color: #135eed #f1f1f1;
+}
+
+.ldg-preview {
+    scrollbar-width: thin;
+    scrollbar-color: #666 #f1f1f1;
+}
+			
         </style>
 
         <div class="ldg-wrapper <?php echo $single_template ? 'single-template-mode' : ''; ?>">
@@ -1051,7 +1129,11 @@ function render_legal_documents($atts) {
             <?php if (!$single_template): ?>
             <!-- Header -->
             <div class="ldg-header">
-                <h1>Legal Document Generator</h1>
+				<?php 
+    $current_user = wp_get_current_user();
+    $name = $current_user->first_name ?: $current_user->display_name;
+    ?>
+                 <h1>Welcome, <?php echo esc_html($name); ?>!</h1>
                 <p>Create professional legal documents in minutes</p>
             </div>
             
@@ -2892,112 +2974,7 @@ function ldg_render_login_form() {
     return ob_get_clean();
 }
 
-// ===== WATERMARK FUNCTIONALITY =====
-// Add this to the existing JavaScript in your main shortcode
-add_action('wp_footer', 'ldg_add_watermark_script');
-function ldg_add_watermark_script() {
-    if (!is_page()) return;
-    ?>
-    <script>
-    jQuery(document).ready(function($) {
-        // Function to add watermarks to preview
-        function addWatermarks() {
-            var preview = document.getElementById('ldg-preview');
-            if (!preview) return;
-            
-            // Remove existing watermarks
-            $('.ldg-watermark').remove();
-            
-            // Get preview dimensions
-            var previewHeight = preview.scrollHeight;
-            var watermarkCount = Math.ceil(previewHeight / 400); // One watermark every 400px
-            
-            // Add watermarks
-            for (var i = 0; i < watermarkCount; i++) {
-                var watermark = $('<div class="ldg-watermark">CONFIDENTIAL DRAFT</div>');
-                watermark.css({
-                    'position': 'absolute',
-                    'top': (150 + (i * 400)) + 'px',
-                    'left': '50%',
-                    'transform': 'translateX(-50%) rotate(-45deg)',
-                    'font-size': '48px',
-                    'color': 'rgba(255, 0, 0, 0.2)',
-                    'font-weight': 'bold',
-                    'pointer-events': 'none',
-                    'z-index': '100',
-                    'user-select': 'none',
-                    'font-family': 'Arial, sans-serif'
-                });
-                $('#ldg-preview').append(watermark);
-            }
-        }
-        
-        // Add watermarks on initial load
-        setTimeout(addWatermarks, 500);
-        
-        // Re-add watermarks when content changes
-        var observer = new MutationObserver(function(mutations) {
-            addWatermarks();
-        });
-        
-        if (document.getElementById('ldg-preview')) {
-            observer.observe(document.getElementById('ldg-preview'), {
-                childList: true,
-                subtree: true
-            });
-        }
-        
-        // Override the download function to remove watermarks
-        var originalDownload = window.ldgDownloadPDF;
-        window.ldgDownloadPDF = function() {
-            // Remove watermarks before download
-            $('.ldg-watermark').hide();
-            
-            // Call original download function
-            originalDownload.call(this);
-            
-            // Show watermarks again after a delay
-            setTimeout(function() {
-                $('.ldg-watermark').show();
-            }, 1000);
-            
-            // Show success message
-            if (!$('.ldg-download-success').length) {
-                var successMsg = $('<div class="ldg-download-success">✅ Document downloaded without watermark!</div>');
-                successMsg.css({
-                    'position': 'fixed',
-                    'bottom': '20px',
-                    'right': '20px',
-                    'background': '#28a745',
-                    'color': 'white',
-                    'padding': '15px 25px',
-                    'border-radius': '8px',
-                    'z-index': '9999',
-                    'font-weight': 'bold',
-                    'box-shadow': '0 4px 15px rgba(0,0,0,0.2)'
-                });
-                $('body').append(successMsg);
-                
-                setTimeout(function() {
-                    successMsg.fadeOut(function() {
-                        $(this).remove();
-                    });
-                }, 3000);
-            }
-        };
-    });
-    </script>
-    <style>
-    #ldg-preview {
-        position: relative;
-    }
-    
-    .ldg-watermark {
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-        letter-spacing: 8px;
-        white-space: nowrap;
-    }
-    </style>
-    <?php
-}
+
+
+
 ?>
